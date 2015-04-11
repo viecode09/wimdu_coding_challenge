@@ -1,0 +1,89 @@
+#!/usr/bin/env ruby
+
+require 'thor'
+require 'fileutils'
+
+class WimduCLI< Thor
+	desc "list", "Listing all Property"
+  def list
+    puts complete_data.size == 0 ? "No properties found." : "Found #{complete_data.size} offer"
+    if complete_data.size > 0
+    	complete_data.each do |data|
+    		title = eval(File.read(data))[:title]
+      	puts "#{data.split("/").last}: #{title}"
+      end
+    end
+  end
+
+  desc "new", "create new property"
+  def new
+    hash = {
+    	title: nil,
+    	address: nil,
+    	nightly_rate_in_euro: nil,
+    	max_guests: nil,
+    	property_type: nil,
+    	email: nil,
+    	phone_number: nil
+    }
+ 		filename = random_string
+    puts "Starting with new property #{filename}"
+
+    hash.keys.each do |k|
+      process_data(hash, k)
+      save_data(filename, hash)
+   	end
+   	puts "Great job! Listing #{filename} is complete!"
+		FileUtils.mv("db/progress/#{filename}", "db/complete/#{filename}")
+  end
+
+  desc "continue(filename)", "continue property with parameter ID"
+  def continue(filename)
+    hash = eval(File.read("db/progress/#{filename}"))
+    hash.each do |k, v|
+      next unless v.nil?
+      process_data(hash, k)
+      save_data(filename, hash)
+    end
+    puts "Great job! Listing #{filename} is complete!"
+		FileUtils.mv("db/progress/#{filename}", "db/complete/#{filename}")
+  end
+
+  private
+
+  def process_data(hash, k)
+  	puts "#{k.to_s.capitalize} : "
+    hash[k.to_sym] = STDIN.gets.chomp
+    if ["max_guests", "property_type"].include?(k.to_s) && !validate(k.to_s, hash[k])
+			error_notif(k.to_s)    	
+    	process_data(hash, k)
+    end
+  end
+
+  def validate(k, v)
+  	return v.to_i != 0 if k == "max_guests"
+  	return ["holiday home", "apartement", "private room"].include?(v) if k == "property_type"
+  end
+
+  def error_notif(k)
+  	puts "Error: must be a number" if k == "max_guests"
+  	puts "Error: Woring Type Input ['holiday home'/'apartement'/'private room']" if k == "property_type"
+  end
+
+  def save_data(filename, hash)
+    File.open("db/progress/#{filename}", "w") do |f|
+    	f.puts hash
+    end
+  end
+
+  def complete_data
+    Dir[File.join("db/complete", '**', '*')]
+  end
+
+  def random_string
+    n = 10
+    Array.new(n){[*"A".."Z", *"0".."9"].sample}.join
+  end
+end
+
+WimduCLI.start(ARGV)
